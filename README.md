@@ -77,3 +77,9 @@ TTN Gateway:
 
 ![alt text](https://github.com/cyberjunky/home-assistant-toon_boilerstatus/blob/master/screenshots/ttn-gw-badges.png?raw=true "Screenshot TTN Gateway Badges")
 ![alt text](https://github.com/cyberjunky/home-assistant-toon_boilerstatus/blob/master/screenshots/ttn-gw-status.png?raw=true "Screenshot TTN Gateway Status")
+
+### Changes
+* first release for hacs
+
+### Donation
+[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/cyberjunkynl/)
