@@ -8,6 +8,9 @@ This is a Custom Component for Home-Assistant (https://home-assistant.io)
 
 If you have [one of these](https://www.thethingsnetwork.org/docs/gateways/gateway/) (from [kickstarter](https://www.kickstarter.com/projects/419277966/the-things-network) ) you can use this component to monitor all statistics from it.
 
+NOTE: I got the original code from a GitHub Gists, but cannot find the source any more to refer too.
+If you happen to find it please tell me.
+
 ### Installation
 
 - Copy directory `custom-components/ttn_gateway` to your `<config dir>/custom-components` directory.
