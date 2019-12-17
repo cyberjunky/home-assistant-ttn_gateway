@@ -6,7 +6,9 @@ This components reads statistics from a local The Things Network Gateway.
 ## Home-Assistant Custom Component
 This is a Custom Component for Home-Assistant (https://home-assistant.io)
 
-If you have [one of these](https://www.thethingsnetwork.org/docs/gateways/gateway/) (from [kickstarter](https://www.kickstarter.com/projects/419277966/the-things-network) ) you can use this component to monitor all statistics from it.
+If you have [one of these](https://www.thethingsnetwork.org/docs/gateways/gateway/) (from [kickstarter](https://www.kickstarter.com/projects/419277966/the-things-network)) you can use this component to monitor all statistics from it.
+
+:tada: I have one for sale, new in the box btw.
 
 NOTE: I got the original code from a GitHub Gists, but cannot find the source any more to refer too.
 If you happen to find it please tell me.
@@ -78,8 +80,8 @@ TTN Gateway:
 
 ### Screenshots
 
-![alt text](https://github.com/cyberjunky/home-assistant-toon_boilerstatus/blob/master/screenshots/ttn-gw-badges.png?raw=true "Screenshot TTN Gateway Badges")
-![alt text](https://github.com/cyberjunky/home-assistant-toon_boilerstatus/blob/master/screenshots/ttn-gw-status.png?raw=true "Screenshot TTN Gateway Status")
+![alt text](https://github.com/cyberjunky/home-assistant-ttn_gateway/blob/master/screenshots/ttn-gw-badges.png?raw=true "Screenshot TTN Gateway Badges")
+![alt text](https://github.com/cyberjunky/home-assistant-ttn_gateway/blob/master/screenshots/ttn-gw-status.png?raw=true "Screenshot TTN Gateway Status")
 
 ### Changes
 * first release for hacs
