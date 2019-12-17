@@ -1,0 +1,7 @@
+{
+  "name": "TTN Gateway Sensor",
+  "country": "NL",
+  "render_readme": false,
+  "domains": ["sensor"]
+}
+
