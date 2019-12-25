@@ -1,10 +1,7 @@
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)  [![made-with-python](https://img.shields.io/badge/Made%20with-Python-1f425f.svg)](https://www.python.org/) [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/cyberjunkynl/)
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/custom-components/hacs)  [![made-with-python](https://img.shields.io/badge/Made%20with-Python-1f425f.svg)](https://www.python.org/) [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/cyberjunkynl/)
 
 # TheThingsNetwork Gateway Sensor Component
-This components reads statistics from a local The Things Network Gateway.
-
-## Home-Assistant Custom Component
-This is a Custom Component for Home-Assistant (https://home-assistant.io)
+This is a Custom Component for Home-Assistant (https://home-assistant.io) that reads statistics from a local The Things Network Gateway.
 
 If you have [one of these](https://www.thethingsnetwork.org/docs/gateways/gateway/) (from [kickstarter](https://www.kickstarter.com/projects/419277966/the-things-network)) you can use this component to monitor all statistics from it.
 
@@ -13,13 +10,21 @@ If you have [one of these](https://www.thethingsnetwork.org/docs/gateways/gatewa
 NOTE: I got the original code from a GitHub Gists, but cannot find the source any more to refer too.
 If you happen to find it please tell me.
 
-### Installation
+## Installation
 
+### HACS - Recommended
+- Have [HACS](https://hacs.xyz) installed, this will allow you to easily manage and track updates.
+- Search for 'TTN Gateway Sensor'.
+- Click Install below the found integration.
+- Configure using the configuration instructions below.
+- Restart Home-Assistant.
+
+### Manual
 - Copy directory `custom-components/ttn_gateway` to your `<config dir>/custom-components` directory.
 - Configure with config below.
 - Restart Home-Assistant.
 
-### Usage
+## Usage
 To use this component in your installation, add the following to your `configuration.yaml` file:
 
 ```yaml
@@ -78,13 +83,10 @@ TTN Gateway:
   - sensor.ttn_gw_external_storage
 ```
 
-### Screenshots
+## Screenshots
 
 ![alt text](https://github.com/cyberjunky/home-assistant-ttn_gateway/blob/master/screenshots/ttn-gw-badges.png?raw=true "Screenshot TTN Gateway Badges")
 ![alt text](https://github.com/cyberjunky/home-assistant-ttn_gateway/blob/master/screenshots/ttn-gw-status.png?raw=true "Screenshot TTN Gateway Status")
 
-### Changes
-* first release for hacs
-
-### Donation
+## Donation
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/cyberjunkynl/)
