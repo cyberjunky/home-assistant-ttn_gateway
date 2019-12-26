@@ -1,1 +1,1 @@
-"""TheThingsNetwork Gateway Sensor Component"""
+"""The ttn_gateway component."""

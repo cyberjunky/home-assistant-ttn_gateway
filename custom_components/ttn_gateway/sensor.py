@@ -1,5 +1,5 @@
 """
-Support for reading The Things Network gateway status.
+Support for reading The Things Network Gateway status.
 
 configuration.yaml
 
@@ -33,17 +33,18 @@ import voluptuous as vol
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 import homeassistant.helpers.config_validation as cv
 from homeassistant.const import (
-    CONF_HOST, CONF_SCAN_INTERVAL, CONF_RESOURCES)
+    CONF_HOST, CONF_SCAN_INTERVAL, CONF_RESOURCES
+    )
 from homeassistant.util import Throttle
 from homeassistant.helpers.entity import Entity
 
+
+BASE_URL = 'http://{0}/status.cgi'
 _LOGGER = logging.getLogger(__name__)
 
-BASE_URL = 'http://{0}{1}'
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=10)
 
 SENSOR_PREFIX = 'TTN_GW '
-
 SENSOR_TYPES = {
     'gateway': ['Gateway', '', 'mdi:router-wireless'],
     'hwversion': ['Hardware Version', '', 'mdi:file-document-box'],
@@ -58,74 +59,88 @@ SENSOR_TYPES = {
     'region': ['Region', '', 'mdi:map-marker-radius'],
     'gwcard': ['Gateway Card', '', 'mdi:radio-tower'],
     'brokerconnected': ['Broker Connected', '', 'mdi:forum-outline'],
-    'packetsup': ['Packets Up', '', 'mdi:gauge'],
-    'packetsdown': ['Packets Down', '', 'mdi:gauge'],
+    'packetsup': ['Packets Up', 'pkts', 'mdi:gauge'],
+    'packetsdown': ['Packets Down', 'pkts', 'mdi:gauge'],
     'estore': ['External Storage', '', 'mdi:sd'],
 }
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_HOST): cv.string,
-    vol.Required(CONF_RESOURCES, default=[]):
+    vol.Required(CONF_RESOURCES, default=list(SENSOR_TYPES)):
         vol.All(cv.ensure_list, [vol.In(SENSOR_TYPES)]),
 })
 
-
-def setup_platform(hass, config, add_entities, discovery_info=None):
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Setup the TTN gateway sensors."""
+
     scan_interval = config.get(CONF_SCAN_INTERVAL)
     host = config.get(CONF_HOST)
 
+    data = TTNGatewayData(host)
+
     try:
-        data = TTNGatewayData(host)
-    except requests.exceptions.HTTPError as error:
-        _LOGGER.error(error)
-        return False
+        await data.async_update()
+    except ValueError as err:
+        _LOGGER.error("Error while fetching data from the TTN Gateway: %s", err)
+        return
 
     entities = []
-
     for resource in config[CONF_RESOURCES]:
         sensor_type = resource.lower()
+        name = SENSOR_PREFIX + SENSOR_TYPES[resource][0]
+        unit = SENSOR_TYPES[resource][1]
+        icon = SENSOR_TYPES[resource][2]
 
-        if sensor_type not in SENSOR_TYPES:
-            SENSOR_TYPES[sensor_type] = [
-                sensor_type.title(), '', 'mdi:flash']
+        _LOGGER.debug("Adding TTN Gateway sensor: {}, {}, {}, {}".format(sensor_type, name, unit, icon))
+        entities.append(TTNGatewaySensor(data, sensor_type, name, unit, icon))
 
-        entities.append(TTNGatewayStatusSensor(data, sensor_type))
-
-    add_entities(entities)
+    async_add_entities(entities, True)
 
 
 # pylint: disable=abstract-method
 class TTNGatewayData(object):
-    """Representation of a TTN gateway status."""
+    """Handle TTN Gateway object and limit updates."""
 
     def __init__(self, host):
         """Initialize the data."""
         self._host = host
-        self.data = None
+        self._data = None
+
+    def _build_url(self):
+        """Build the URL for the requests."""
+        url = BASE_URL.format(self._host)
+        _LOGGER.debug("TTN Gateway fetch URL: %s", url)
+        return url
+
+    @property
+    def latest_data(self):
+        """Return the latest data object."""
+        if self._data:
+            return self._data
+        return None
 
     @Throttle(MIN_TIME_BETWEEN_UPDATES)
-    def update(self):
-        """Update the data from the gateway."""
+    async def async_update(self):
+        """Update the data from the TTN Gateway."""
         try:
-            self.data = requests.get(BASE_URL.format(self._host, '/status.cgi'), timeout=5).json()
-            _LOGGER.debug("Data = %s", self.data)
-        except requests.exceptions.RequestException:
-            _LOGGER.error("Error occurred while fetching data.")
-            self.data = None
-            return False
+            self._data = requests.get(self._build_url(), timeout=10).json()
+            _LOGGER.debug("TTN Gateway fetched data = %s", self._data)
+        except (requests.exceptions.RequestException) as error:
+            _LOGGER.error("Unable to connect to TTN Gateway: %s", error)
+            self._data = None
 
- 
-class TTNGatewayStatusSensor(Entity):
-    """Representation of a TTN gateway data."""
 
-    def __init__(self, data, sensor_type):
+class TTNGatewaySensor(Entity):
+    """Representation of TTN gateway data."""
+
+    def __init__(self, data, sensor_type, name, unit, icon):
         """Initialize the sensor."""
-        self.data = data
-        self.type = sensor_type
-        self._name = SENSOR_PREFIX + SENSOR_TYPES[self.type][0]
-        self._unit = SENSOR_TYPES[self.type][1]
-        self._icon = SENSOR_TYPES[self.type][2]
+        self._data = data
+        self._type = sensor_type
+        self._name = name
+        self._unit = unit
+        self._icon = icon
+
         self._state = None
 
     @property
@@ -154,71 +169,78 @@ class TTNGatewayStatusSensor(Entity):
         attr = {}
         return attr
 
-    def update(self):
+    async def async_update(self):
         """Get the latest data and use it to update our sensor state."""
-        self.data.update()
-        status = self.data.data
 
-        if self.type == 'gateway':
+        await self._data.async_update()
+        if not self._data:
+            _LOGGER.error("Didn't receive data from TTN Gateway")
+            return
+
+        status = self._data.latest_data
+
+        if self._type == 'gateway':
             if 'gateway' in status:
                 self._state = status["gateway"]
 
-        elif self.type == 'hwversion':
+        elif self._type == 'hwversion':
             if 'hwversion' in status:
                 self._state = status["hwversion"]
 
-        elif self.type == 'blversion':
+        elif self._type == 'blversion':
             if 'blversion' in status:
                 self._state = status["blversion"]
 
-        elif self.type == 'fwversion':
+        elif self._type == 'fwversion':
             if 'fwversion' in status:
                 self._state = status["fwversion"]
 
-        elif self.type == 'uptime':
+        elif self._type == 'uptime':
             if 'uptime' in status:
                 self._state = status["uptime"]
 
-        elif self.type == 'connected':
+        elif self._type == 'connected':
             if 'connected' in status:
                 self._state = status["connected"]
 
-        elif self.type == 'interface':
+        elif self._type == 'interface':
             if 'interface' in status:
                 self._state = status["interface"]
 
-        elif self.type == 'ssid':
+        elif self._type == 'ssid':
             if 'ssid' in status:
                 self._state = status["ssid"]
 
-        elif self.type == 'activationlocked':
+        elif self._type == 'activationlocked':
             if 'activation_locked' in status:
                 self._state = status["activation_locked"]
 
-        elif self.type == 'configured':
+        elif self._type == 'configured':
             if 'configured' in status:
                 self._state = status["configured"]
 
-        elif self.type == 'region':
+        elif self._type == 'region':
             if 'region' in status:
                 self._state = status["region"]
 
-        elif self.type == 'gwcard':
+        elif self._type == 'gwcard':
             if 'gwcard' in status:
                 self._state = status["gwcard"]
 
-        elif self.type == 'brokerconnected':
+        elif self._type == 'brokerconnected':
             if 'connbroker' in status:
                 self._state = status["connbroker"]
 
-        elif self.type == 'packetsup':
+        elif self._type == 'packetsup':
             if 'pup' in status:
                 self._state = status["pup"]
 
-        elif self.type == 'packetsdown':
+        elif self._type == 'packetsdown':
             if 'pdown' in status:
                 self._state = status["pdown"]
 
-        elif self.type == 'estore':
+        elif self._type == 'estore':
             if 'estor' in status:
                 self._state = status["estor"]
+
+        _LOGGER.debug("Device: {} State: {}".format(self._type, self._state))
