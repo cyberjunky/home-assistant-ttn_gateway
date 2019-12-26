@@ -10,16 +10,6 @@ If you have [one of these](https://www.thethingsnetwork.org/docs/gateways/gatewa
 NOTE: I got the original code from a GitHub Gists, but cannot find the source any more to refer too.
 If you happen to find it please tell me.
 
-{% if not installed %}
-
-## Installation
-
-- Install this integration using HACS.
-- Configure using the configuration instructions below.
-- Restart Home-Assistant.
-
-{% endif %}
-
 ## Usage
 To use this component in your installation, add the following to your `configuration.yaml` file:
 
