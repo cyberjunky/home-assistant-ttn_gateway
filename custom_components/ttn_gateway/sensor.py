@@ -4,40 +4,42 @@ Support for reading The Things Network Gateway status.
 configuration.yaml
 
 sensor:
-  - platform: ttn_gateway
-    host: IP_ADDRESS
-    scan_interval: 10
-    resources:
-      - gateway
-      - hwversion
-      - blversion
-      - fwversion
-      - uptime
-      - connected
-      - interface
-      - ssid
-      - activationlocked
-      - configured
-      - region
-      - gwcard
-      - brokerconnected
-      - packetsup
-      - packetsdown
-      - estore
+    - platform: ttn_gateway
+        host: IP_ADDRESS
+        scan_interval: 10
+        resources:
+        - gateway
+        - hwversion
+        - blversion
+        - fwversion
+        - uptime
+        - connected
+        - interface
+        - ssid
+        - activationlocked
+        - configured
+        - region
+        - gwcard
+        - brokerconnected
+        - packetsup
+        - packetsdown
+        - estore
 """
 import logging
 from datetime import timedelta
-import requests
+import aiohttp
+import asyncio
+import async_timeout
 import voluptuous as vol
 
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.const import (
     CONF_HOST, CONF_SCAN_INTERVAL, CONF_RESOURCES
     )
 from homeassistant.util import Throttle
 from homeassistant.helpers.entity import Entity
-
 
 BASE_URL = 'http://{0}/status.cgi'
 _LOGGER = logging.getLogger(__name__)
@@ -76,13 +78,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     scan_interval = config.get(CONF_SCAN_INTERVAL)
     host = config.get(CONF_HOST)
 
-    data = TTNGatewayData(host)
-
-    try:
-        await data.async_update()
-    except ValueError as err:
-        _LOGGER.error("Error while fetching data from the TTN Gateway: %s", err)
-        return
+    ttndata = TTNGatewayData(hass, host)
+    await ttndata.async_update()
 
     entities = []
     for resource in config[CONF_RESOURCES]:
@@ -91,8 +88,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         unit = SENSOR_TYPES[resource][1]
         icon = SENSOR_TYPES[resource][2]
 
-        _LOGGER.debug("Adding TTN Gateway sensor: {}, {}, {}, {}".format(sensor_type, name, unit, icon))
-        entities.append(TTNGatewaySensor(data, sensor_type, name, unit, icon))
+        _LOGGER.debug("Adding TTN Gateway sensor: {}, {}, {}, {}".format(name, sensor_type, unit, icon))
+        entities.append(TTNGatewaySensor(ttndata, name, sensor_type, unit, icon))
 
     async_add_entities(entities, True)
 
@@ -100,17 +97,44 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 # pylint: disable=abstract-method
 class TTNGatewayData(object):
     """Handle TTN Gateway object and limit updates."""
-
-    def __init__(self, host):
+    def __init__(self, hass, host):
         """Initialize the data."""
+        self._hass = hass
         self._host = host
+
+        self._url = BASE_URL.format(self._host)
         self._data = None
 
-    def _build_url(self):
-        """Build the URL for the requests."""
-        url = BASE_URL.format(self._host)
-        _LOGGER.debug("TTN Gateway fetch URL: %s", url)
-        return url
+    @Throttle(MIN_TIME_BETWEEN_UPDATES)
+    async def async_update(self):
+        """Update the data from the TTN Gateway."""
+        _LOGGER.debug(
+                "Downloading data from TTN Gateway: %s", self._url
+        )
+
+        try:
+            websession = async_get_clientsession(self._hass)
+            with async_timeout.timeout(5):
+                response = await websession.get(self._url)
+            _LOGGER.debug(
+                "Response status from TTN Gateway: %s", response.status
+            )
+        except (asyncio.TimeoutError, aiohttp.ClientError) as err:
+            _LOGGER.error("Cannot connect to TTN Gateway: %s", err)
+            self._data = None
+            return
+        except Exception as err:
+            _LOGGER.error("Error downloading from TTN Gateway: %s", err)
+            self._data = None
+            return
+
+        try:
+            self._data = await response.json(content_type='text/html')
+            _LOGGER.debug("Data received from TTN Gateway: %s", self._data)
+        except Exception as err:
+            _LOGGER.error("Cannot parse data from TTN Gateway: %s", err)
+            self._data = None
+            return
 
     @property
     def latest_data(self):
@@ -119,25 +143,15 @@ class TTNGatewayData(object):
             return self._data
         return None
 
-    @Throttle(MIN_TIME_BETWEEN_UPDATES)
-    async def async_update(self):
-        """Update the data from the TTN Gateway."""
-        try:
-            self._data = requests.get(self._build_url(), timeout=10).json()
-            _LOGGER.debug("TTN Gateway fetched data = %s", self._data)
-        except (requests.exceptions.RequestException) as error:
-            _LOGGER.error("Unable to connect to TTN Gateway: %s", error)
-            self._data = None
-
 
 class TTNGatewaySensor(Entity):
     """Representation of TTN gateway data."""
 
-    def __init__(self, data, sensor_type, name, unit, icon):
+    def __init__(self, ttndata, name, sensor_type, unit, icon):
         """Initialize the sensor."""
-        self._data = data
-        self._type = sensor_type
+        self._ttndata = ttndata
         self._name = name
+        self._type = sensor_type
         self._unit = unit
         self._icon = icon
 
@@ -172,75 +186,72 @@ class TTNGatewaySensor(Entity):
     async def async_update(self):
         """Get the latest data and use it to update our sensor state."""
 
-        await self._data.async_update()
-        if not self._data:
-            _LOGGER.error("Didn't receive data from TTN Gateway")
-            return
+        await self._ttndata.async_update()
+        ttnstatus = self._ttndata.latest_data
 
-        status = self._data.latest_data
+        if ttnstatus:
+            if self._type == 'gateway':
+                if 'gateway' in ttnstatus:
+                    self._state = ttnstatus["gateway"]
 
-        if self._type == 'gateway':
-            if 'gateway' in status:
-                self._state = status["gateway"]
+            elif self._type == 'hwversion':
+                if 'hwversion' in ttnstatus:
+                    self._state = ttnstatus["hwversion"]
 
-        elif self._type == 'hwversion':
-            if 'hwversion' in status:
-                self._state = status["hwversion"]
+            elif self._type == 'blversion':
+                if 'blversion' in ttnstatus:
+                    self._state = ttnstatus["blversion"]
 
-        elif self._type == 'blversion':
-            if 'blversion' in status:
-                self._state = status["blversion"]
+            elif self._type == 'fwversion':
+                if 'fwversion' in ttnstatus:
+                    self._state = ttnstatus["fwversion"]
 
-        elif self._type == 'fwversion':
-            if 'fwversion' in status:
-                self._state = status["fwversion"]
+            elif self._type == 'uptime':
+                if 'uptime' in ttnstatus:
+                    self._state = ttnstatus["uptime"]
 
-        elif self._type == 'uptime':
-            if 'uptime' in status:
-                self._state = status["uptime"]
+            elif self._type == 'connected':
+                if 'connected' in ttnstatus:
+                    self._state = ttnstatus["connected"]
 
-        elif self._type == 'connected':
-            if 'connected' in status:
-                self._state = status["connected"]
+            elif self._type == 'interface':
+                if 'interface' in ttnstatus:
+                    self._state = ttnstatus["interface"]
 
-        elif self._type == 'interface':
-            if 'interface' in status:
-                self._state = status["interface"]
+            elif self._type == 'ssid':
+                if 'ssid' in ttnstatus:
+                    self._state = ttnstatus["ssid"]
 
-        elif self._type == 'ssid':
-            if 'ssid' in status:
-                self._state = status["ssid"]
+            elif self._type == 'activationlocked':
+                if 'activation_locked' in ttnstatus:
+                    self._state = ttnstatus["activation_locked"]
 
-        elif self._type == 'activationlocked':
-            if 'activation_locked' in status:
-                self._state = status["activation_locked"]
+            elif self._type == 'configured':
+                if 'configured' in ttnstatus:
+                    self._state = ttnstatus["configured"]
 
-        elif self._type == 'configured':
-            if 'configured' in status:
-                self._state = status["configured"]
+            elif self._type == 'region':
+                if 'region' in ttnstatus:
+                    self._state = ttnstatus["region"]
 
-        elif self._type == 'region':
-            if 'region' in status:
-                self._state = status["region"]
+            elif self._type == 'gwcard':
+                if 'gwcard' in ttnstatus:
+                    self._state = ttnstatus["gwcard"]
 
-        elif self._type == 'gwcard':
-            if 'gwcard' in status:
-                self._state = status["gwcard"]
+            elif self._type == 'brokerconnected':
+                if 'connbroker' in ttnstatus:
+                    self._state = ttnstatus["connbroker"]
 
-        elif self._type == 'brokerconnected':
-            if 'connbroker' in status:
-                self._state = status["connbroker"]
+            elif self._type == 'packetsup':
+                if 'pup' in ttnstatus:
+                    self._state = ttnstatus["pup"]
 
-        elif self._type == 'packetsup':
-            if 'pup' in status:
-                self._state = status["pup"]
+            elif self._type == 'packetsdown':
+                if 'pdown' in ttnstatus:
+                    self._state = ttnstatus["pdown"]
 
-        elif self._type == 'packetsdown':
-            if 'pdown' in status:
-                self._state = status["pdown"]
+            elif self._type == 'estore':
+                if 'estor' in ttnstatus:
+                    self._state = ttnstatus["estor"]
 
-        elif self._type == 'estore':
-            if 'estor' in status:
-                self._state = status["estor"]
-
-        _LOGGER.debug("Device: {} State: {}".format(self._type, self._state))
+            _LOGGER.debug("Device: {} State: {}".format(self._type, self._state))
