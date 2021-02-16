@@ -1,7 +1,9 @@
 {
   "domain": "ttn_gateway",
   "name": "TTN Gateway Sensor",
+  "version": "1.0.6",
   "documentation": "https://github.com/cyberjunky/home-assistant-ttn_gateway",
+  "issue_tracker": "https://github.com/cyberjunky/home-assistant-ttn_gateway/issues",
   "requirements": [],
   "dependencies": [],
   "codeowners": ["@cyberjunky"]
